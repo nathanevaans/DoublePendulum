@@ -391,12 +391,12 @@
         ctx.lineTo(x2, y2)
         ctx.stroke()
 
-        ctx.strokeStyle = "red"
+        ctx.fillStyle = "red"
         ctx.beginPath()
         ctx.arc(x1, y1, scale * pendulum.mass1, 0, 2 * Math.PI)
         ctx.fill()
 
-        ctx.strokeStyle = "blue"
+        ctx.fillStyle = "blue"
         ctx.beginPath()
         ctx.arc(x2, y2, scale * pendulum.mass2, 0, 2 * Math.PI)
         ctx.fill()
