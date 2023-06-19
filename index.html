@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Double Pendulum Simulation</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+        }
+
+        #container {
+            display: flex;
+            align-items: center;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            margin-right: 20px;
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .slider-container input[type="range"] {
+            flex-grow: 1;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        .slider-container input[type="range"]:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .slider-container span {
+            width: 40px;
+            text-align: center;
+        }
+
+        .slider-container button {
+            padding: 8px 16px;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #startButton {
+            background-color: #4CAF50;
+            width: 64px;
+        }
+
+        #startButton:hover {
+            background-color: #45a049;
+        }
+
+        #startButton:active {
+            background-color: #3e8e41;
+        }
+
+        #resetButton {
+            background-color: #f44336;
+        }
+
+        #resetButton:hover {
+            background-color: #d32f2f;
+        }
+
+        #resetButton:active {
+            background-color: #b71c1c;
+        }
+
+        #resetButton:disabled {
+            background-color: #999999;
+            cursor: default
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <div id="controls">
+        <div class="slider-container">
+            <label for="length1">Length 1:</label>
+            <input type="range" id="length1" min="1" max="75" value="50">
+            <span id="length1Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="length2">Length 2:</label>
+            <input type="range" id="length2" min="1" max="75" value="50">
+            <span id="length2Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="mass1">Mass 1:</label>
+            <input type="range" id="mass1" min="1" max="5" step="0.5" value="1.0">
+            <span id="mass1Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="mass2">Mass 2:</label>
+            <input type="range" id="mass2" min="1" max="5" step="0.5" value="1.0">
+            <span id="mass2Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="angle1">Initial Angle 1:</label>
+            <input type="range" id="angle1" min="-180" max="180" value="0">
+            <span id="angle1Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="angle2">Initial Angle 2:</label>
+            <input type="range" id="angle2" min="-180" max="180" value="0">
+            <span id="angle2Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="angularVelocity1">Initial Angular Velocity 1:</label>
+            <input type="range" id="angularVelocity1" min="-0.5" max="0.5" step="0.01" value="0.00">
+            <span id="angularVelocity1Value"></span>
+        </div>
+        <div class="slider-container">
+            <label for="angularVelocity2">Initial Angular Velocity 2:</label>
+            <input type="range" id="angularVelocity2" min="-0.5" max="0.5" step="0.01" value="0.00">
+            <span id="angularVelocity2Value"></span>
+        </div>
+        <div class="slider-container">
+            <button id="startButton">Start</button>
+            <button id="resetButton">Reset</button>
+        </div>
+    </div>
+    <canvas id="canvas" width="325" height="325"></canvas>
+</div>
+
+<script>
+    class Render {
+        constructor(renderCallback, updateCallback, tickRate) {
+            this.renderCallback = renderCallback
+            this.updateCallback = updateCallback
+            this.tickRate = tickRate
+            this.isRunning = false
+            this.requestId = null
+            this.previousTimestamp = 0
+            this.accumulatedTime = 0
+        }
+
+        start() {
+            if (!this.isRunning) {
+                this.isRunning = true
+                this.previousTimestamp = performance.now()
+                this.requestId = requestAnimationFrame(this.animate.bind(this))
+            }
+        }
+
+        stop() {
+            if (this.isRunning) {
+                this.isRunning = false
+                cancelAnimationFrame(this.requestId)
+            }
+        }
+
+        animate(timestamp) {
+            const elapsed = timestamp - this.previousTimestamp
+            this.previousTimestamp = timestamp
+            this.accumulatedTime += elapsed
+
+            while (this.accumulatedTime >= this.tickRate) {
+                if (this.updateCallback) {
+                    this.updateCallback(elapsed)
+                }
+                this.accumulatedTime -= this.tickRate
+            }
+
+            if (this.renderCallback) {
+                this.renderCallback(elapsed)
+            }
+
+            if (this.isRunning) {
+                this.requestId = requestAnimationFrame(this.animate.bind(this))
+            }
+        }
+    }
+
+    const initialise = () => {
+        const canvas = document.getElementById("canvas")
+        const ctx = canvas.getContext("2d")
+
+        const length1Slider = document.getElementById("length1")
+        const length2Slider = document.getElementById("length2")
+        const mass1Slider = document.getElementById("mass1")
+        const mass2Slider = document.getElementById("mass2")
+        const angle1Slider = document.getElementById("angle1")
+        const angle2Slider = document.getElementById("angle2")
+        const angularVelocity1Slider = document.getElementById("angularVelocity1")
+        const angularVelocity2Slider = document.getElementById("angularVelocity2")
+
+        const length1Value = document.getElementById("length1Value")
+        const length2Value = document.getElementById("length2Value")
+        const mass1Value = document.getElementById("mass1Value")
+        const mass2Value = document.getElementById("mass2Value")
+        const angle1Value = document.getElementById("angle1Value")
+        const angle2Value = document.getElementById("angle2Value")
+        const angularVelocity1Value = document.getElementById("angularVelocity1Value")
+        const angularVelocity2Value = document.getElementById("angularVelocity2Value")
+
+        length1Value.textContent = length1Slider.value
+        length2Value.textContent = length2Slider.value
+        mass1Value.textContent = parseFloat(mass1Slider.value).toFixed(1)
+        mass2Value.textContent = parseFloat(mass2Slider.value).toFixed(1)
+        angle1Value.textContent = angle1Slider.value
+        angle2Value.textContent = angle2Slider.value
+        angularVelocity1Value.textContent = parseFloat(angularVelocity1Slider.value).toFixed(2)
+        angularVelocity2Value.textContent = parseFloat(angularVelocity2Slider.value).toFixed(2)
+
+        length1Slider.addEventListener("input", function () {
+            length1Value.textContent = length1Slider.value
+            pendulum.length1 = parseInt(length1Slider.value)
+            drawPendulum()
+        })
+
+        length2Slider.addEventListener("input", function () {
+            length2Value.textContent = length2Slider.value
+            pendulum.length2 = parseInt(length2Slider.value)
+            drawPendulum()
+        })
+
+        mass1Slider.addEventListener("input", function () {
+            mass1Value.textContent = mass1Slider.value
+            pendulum.mass1 = parseFloat(mass1Slider.value)
+            drawPendulum()
+        })
+
+        mass2Slider.addEventListener("input", function () {
+            mass2Value.textContent = mass2Slider.value
+            pendulum.mass2 = parseFloat(mass2Slider.value)
+            drawPendulum()
+        })
+
+        angle1Slider.addEventListener("input", function () {
+            angle1Value.textContent = angle1Slider.value
+            pendulum.angle1 = parseInt(angle1Slider.value)
+            drawPendulum()
+        })
+
+        angle2Slider.addEventListener("input", function () {
+            angle2Value.textContent = angle2Slider.value
+            pendulum.angle2 = parseInt(angle2Slider.value)
+            drawPendulum()
+        })
+
+        angularVelocity1Slider.addEventListener("input", function () {
+            angularVelocity1Value.textContent = angularVelocity1Slider.value
+            pendulum.angularVelocity1 = parseFloat(angularVelocity1Slider.value)
+        })
+
+        angularVelocity2Slider.addEventListener("input", function () {
+            angularVelocity2Value.textContent = angularVelocity2Slider.value
+            pendulum.angularVelocity2 = parseFloat(angularVelocity2Slider.value)
+        })
+
+        const startButton = document.getElementById("startButton")
+        startButton.addEventListener("click", () => {
+            if (startButton.textContent === "Start") {
+                startButton.textContent = "Stop"
+                resetButton.disabled = true
+                length1Slider.disabled = true
+                length2Slider.disabled = true
+                mass1Slider.disabled = true
+                mass2Slider.disabled = true
+                angle1Slider.disabled = true
+                angle2Slider.disabled = true
+                angularVelocity1Slider.disabled = true
+                angularVelocity2Slider.disabled = true
+                renderer.start()
+            } else {
+                startButton.textContent = "Start"
+                resetButton.disabled = false
+                length1Slider.disabled = false
+                length2Slider.disabled = false
+                mass1Slider.disabled = false
+                mass2Slider.disabled = false
+                angle1Slider.disabled = false
+                angle2Slider.disabled = false
+                angularVelocity1Slider.disabled = false
+                angularVelocity2Slider.disabled = false
+                renderer.stop()
+            }
+        })
+
+        const resetButton = document.getElementById("resetButton")
+        resetButton.addEventListener("click", () => {
+            length1Slider.value = length1Slider.defaultValue
+            length1Value.textContent = length1Slider.value
+
+            length2Slider.value = length2Slider.defaultValue
+            length2Value.textContent = length2Slider.value
+
+            mass1Slider.value = mass1Slider.defaultValue
+            mass1Value.textContent = parseFloat(mass1Slider.value).toFixed(1)
+
+            mass2Slider.value = mass2Slider.defaultValue
+            mass2Value.textContent = parseFloat(mass2Slider.value).toFixed(1)
+
+            angle1Slider.value = angle1Slider.defaultValue
+            angle1Value.textContent = angle1Slider.value
+
+            angle2Slider.value = angle2Slider.defaultValue
+            angle2Value.textContent = angle2Slider.value
+
+            angularVelocity1Slider.value = angularVelocity1Slider.defaultValue
+            angularVelocity1Value.textContent = parseFloat(angularVelocity1Slider.value).toFixed(2)
+
+            angularVelocity2Slider.value = angularVelocity2Slider.defaultValue
+            angularVelocity2Value.textContent = parseFloat(angularVelocity2Slider.value).toFixed(2)
+
+            pendulum = {
+                length1: parseInt(length1Slider.value),
+                length2: parseInt(length2Slider.value),
+                mass1: parseFloat(mass1Slider.value),
+                mass2: parseFloat(mass2Slider.value),
+                angle1: parseInt(angle1Slider.value),
+                angle2: parseInt(angle2Slider.value),
+                angularVelocity1: parseFloat(angularVelocity1Slider.value),
+                angularVelocity2: parseFloat(angularVelocity2Slider.value)
+            }
+
+            drawPendulum()
+        })
+
+        pendulum = {
+            length1: parseInt(length1Slider.value),
+            length2: parseInt(length2Slider.value),
+            mass1: parseFloat(mass1Slider.value),
+            mass2: parseFloat(mass2Slider.value),
+            angle1: parseInt(angle1Slider.value),
+            angle2: parseInt(angle2Slider.value),
+            angularVelocity1: parseFloat(angularVelocity1Slider.value),
+            angularVelocity2: parseFloat(angularVelocity2Slider.value)
+        }
+
+        return [canvas, ctx]
+    }
+
+    const drawPendulum = () => {
+        const x0 = canvas.width / 2
+        const y0 = canvas.height / 2
+        const length1 = pendulum.length1
+        const length2 = pendulum.length2
+
+        const theta1 = (pendulum.angle1 * Math.PI) / 180
+        const theta2 = (pendulum.angle2 * Math.PI) / 180
+
+        const x1 = x0 + length1 * Math.sin(theta1)
+        const y1 = y0 + length1 * Math.cos(theta1)
+
+        const x2 = x1 + length2 * Math.sin(theta2)
+        const y2 = y1 + length2 * Math.cos(theta2)
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+        ctx.beginPath()
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(x1, y1)
+        ctx.lineTo(x2, y2)
+        ctx.stroke()
+
+        ctx.beginPath()
+        ctx.arc(x1, y1, pendulum.mass1, 0, 2 * Math.PI)
+        ctx.fill()
+
+        ctx.beginPath()
+        ctx.arc(x2, y2, pendulum.mass2, 0, 2 * Math.PI)
+        ctx.fill()
+    }
+
+    const updatePendulum = () => {
+        const g = 1
+        
+        const angle1 = (pendulum.angle1 * Math.PI) / 180
+        const angle2 = (pendulum.angle2 * Math.PI) / 180
+
+        const angle1Slider = document.getElementById("angle1")
+        const angle2Slider = document.getElementById("angle2")
+        const angularVelocity1Slider = document.getElementById("angularVelocity1")
+        const angularVelocity2Slider = document.getElementById("angularVelocity2")
+
+        const angle1Value = document.getElementById("angle1Value")
+        const angle2Value = document.getElementById("angle2Value")
+        const angularVelocity1Value = document.getElementById("angularVelocity1Value")
+        const angularVelocity2Value = document.getElementById("angularVelocity2Value")
+
+        let num1 = -g * (2 * pendulum.mass1 + pendulum.mass2) * Math.sin(angle1)
+        let num2 = -g * pendulum.mass2 * Math.sin(angle1 - 2 * angle2)
+        let num3 = -2 * Math.sin(angle1 - angle2) * pendulum.mass2 * (pendulum.angularVelocity2 * pendulum.angularVelocity2 * pendulum.length2 + pendulum.angularVelocity1 * pendulum.angularVelocity1 * pendulum.length1 * Math.cos(angle1 - angle2))
+        let deno = pendulum.length1 * (2 * pendulum.mass1 + pendulum.mass2 - pendulum.mass2 * Math.cos(2 * angle1 + 2 * angle2))
+        pendulum.angularVelocity1 += (num1 + num2 + num3) / deno
+        pendulum.angle1 += (pendulum.angularVelocity1 * 180) / Math.PI
+
+        while(pendulum.angle1 >= 180 || pendulum.angle1 < -180) {
+            if (pendulum.angle1 >= 180) {
+                pendulum.angle1 -= 360
+            } else {
+                pendulum.angle1 += 360
+            }
+        }
+
+        angle1Slider.value = pendulum.angle1
+        angle1Value.textContent = pendulum.angle1.toFixed(0)
+        angularVelocity1Slider.value = pendulum.angularVelocity1
+        angularVelocity1Value.textContent = pendulum.angularVelocity1.toFixed(2)
+
+        num1 = 2 * Math.sin(angle1 - angle2)
+        num2 = pendulum.angularVelocity1 * pendulum.angularVelocity1 * pendulum.length1 * (pendulum.mass1 + pendulum.mass2)
+        num3 = g * (pendulum.mass1 + pendulum.mass2) * Math.cos(angle1)
+        let num4 = pendulum.angularVelocity2 * pendulum.angularVelocity2 * pendulum.length2 * pendulum.mass2 * Math.cos(angle1 - angle2)
+        deno = pendulum.length2 * (2 * pendulum.mass1 + pendulum.mass2 - pendulum.mass2 * Math.cos(2 * angle1 - 2 * angle2))
+        pendulum.angularVelocity2 += num1 * (num2 + num3 + num4) / deno
+        pendulum.angle2 += (pendulum.angularVelocity2 * 180) / Math.PI
+
+        while(pendulum.angle2 >= 180 || pendulum.angle2 < -180) {
+            if (pendulum.angle2 >= 180) {
+                pendulum.angle2 -= 360
+            } else {
+                pendulum.angle2 += 360
+            }
+        }
+
+        angle2Slider.value = pendulum.angle2
+        angle2Value.textContent = pendulum.angle2.toFixed(0)
+        angularVelocity2Slider.value = pendulum.angularVelocity2
+        angularVelocity2Value.textContent = pendulum.angularVelocity2.toFixed(2)
+    }
+
+    let pendulum
+    const [canvas, ctx] = initialise()
+    const renderer = new Render(drawPendulum, updatePendulum, 60)
+    drawPendulum()
+</script>
+</body>
+</html>
